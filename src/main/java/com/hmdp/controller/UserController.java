@@ -85,6 +85,10 @@ public class UserController {
         if(!code.equals(cacheCode)){
             return Result.fail("验证码错误");
         }
+        //校验手机号
+        if(!isPhoneInvalid(loginForm.getPhone())){
+            return Result.fail("手机号错误");
+        }
         //登陆
         User user=userService.query().eq("phone",loginForm.getPhone()).one();
         if(user==null){
@@ -97,7 +101,8 @@ public class UserController {
         //session.setAttribute("loginUser",user);
         Map<String, Object> map = BeanUtil.beanToMap(user,new HashMap<>(), CopyOptions.create()
                 .ignoreNullValue()
-                .setFieldValueEditor((fieldName,fieldValue)->fieldValue.toString()));
+                .setFieldValueEditor((fieldName, fieldValue) ->
+                        fieldValue == null ? "" : fieldValue.toString()));
         String token= UUID.randomUUID().toString();
         String tokenKey=LOGIN_USER_KEY+token;
         stringRedisTemplate.opsForHash().putAll(tokenKey,map);
