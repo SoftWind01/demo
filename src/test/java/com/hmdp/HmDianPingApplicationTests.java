@@ -1,6 +1,8 @@
 package com.hmdp;
 
+import com.hmdp.entity.Voucher;
 import com.hmdp.service.impl.ShopServiceImpl;
+import com.hmdp.service.impl.VoucherServiceImpl;
 import com.hmdp.utils.RedisWorker;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,10 +10,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.TemporalUnit;
+import java.util.concurrent.TimeUnit;
 
 @SpringBootTest
 class HmDianPingApplicationTests {
 
+    @Resource
+    private VoucherServiceImpl voucherService;
 
     @Resource
     private ShopServiceImpl shopService;
@@ -35,4 +41,5 @@ class HmDianPingApplicationTests {
         long epochSecond = localDateTime.toEpochSecond(ZoneOffset.UTC);
         System.out.println(epochSecond);
     }
+
 }
