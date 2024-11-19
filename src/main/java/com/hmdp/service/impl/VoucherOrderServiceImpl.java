@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.util.BooleanUtil;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
@@ -10,11 +11,17 @@ import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -32,7 +39,15 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private SeckillVoucherServiceImpl seckillVoucherServiceImpl;
     @Resource
     private RedisWorker redisWorker;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
+    private static final DefaultRedisScript<Long> UNLOCK_SCRIPT;
+    static {
+        UNLOCK_SCRIPT=new DefaultRedisScript<Long>();
+        UNLOCK_SCRIPT.setLocation(new ClassPathResource("unLock.lua"));
+        UNLOCK_SCRIPT.setResultType(Long.class);
+    }
     /**
      * 秒杀抢券
      * @param voucherId
@@ -60,11 +75,19 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("秒杀券没有余量");
         }
         Long id = UserHolder.getUser().getId();
-        synchronized (id.toString().intern()){
+        //获取锁
+        boolean isLock = tryLock(id);
+        if(!isLock){
+            return Result.fail("获取锁失败");
+        }
+        try{
             //获取代理对象
             VoucherOrderServiceImpl currentProxy = (VoucherOrderServiceImpl)AopContext.currentProxy();
             return currentProxy.createOrder(seckillVoucher);
+        }finally {
+            unlock(id);
         }
+
     }
 
     /**
@@ -103,6 +126,21 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setUserId(UserHolder.getUser().getId());
         this.save(voucherOrder);
         return Result.ok();
+    }
+
+    private boolean tryLock(long userID){
+        long threadId=Thread.currentThread().getId();
+        String lock="lock:seckillVoucher:"+userID;
+        Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(lock, threadId+"", 10, TimeUnit.MINUTES);
+        return BooleanUtil.isTrue(flag);
+    }
+
+    private void unlock(long userID){
+//        String id=stringRedisTemplate.opsForValue().get(lock);
+//        if(threadId.equals(id)){
+//            stringRedisTemplate.delete(lock);
+//        }
+        stringRedisTemplate.execute(UNLOCK_SCRIPT,Collections.singletonList("lock:seckillVoucher:"+userID),Thread.currentThread().getId()+"");
     }
 
 }
