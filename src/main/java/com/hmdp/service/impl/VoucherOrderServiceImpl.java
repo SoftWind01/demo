@@ -10,6 +10,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -41,6 +43,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RedisWorker redisWorker;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedissonClient redissonClient;
 
     private static final DefaultRedisScript<Long> UNLOCK_SCRIPT;
     static {
@@ -76,7 +80,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
         Long id = UserHolder.getUser().getId();
         //获取锁
-        boolean isLock = tryLock(id);
+        RLock lock = redissonClient.getLock("lock:seckillVoucher:" + id);
+        boolean isLock = lock.tryLock();
         if(!isLock){
             return Result.fail("获取锁失败");
         }
@@ -85,7 +90,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             VoucherOrderServiceImpl currentProxy = (VoucherOrderServiceImpl)AopContext.currentProxy();
             return currentProxy.createOrder(seckillVoucher);
         }finally {
-            unlock(id);
+            lock.unlock();
         }
 
     }
