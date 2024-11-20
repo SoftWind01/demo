@@ -6,6 +6,7 @@
 
 local voucherKey="seckillVoucher:"..ARGV[1]
 local userKey="order:"..ARGV[1]
+local orderId=ARGV[3]
 local a=redis.call('get',voucherKey)
 if not a then
     return -1;
@@ -20,4 +21,6 @@ if(flag==0) then
     return 2;
 end
 redis.call('incrby',voucherKey,-1)
+---发送创建订单的任务到消息队列
+redis.call('xadd','stream.orders','*','id',orderId,'voucherId',ARGV[1],'userId',ARGV[2])
 return 0
