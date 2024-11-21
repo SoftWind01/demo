@@ -55,9 +55,9 @@ public class UserController {
     @PostMapping("code")
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
         //检验手机号是否合法
-        if(!isPhoneInvalid(phone)){
-            return Result.fail("手机号不合法");
-        }
+//        if(!isPhoneInvalid(phone)){
+//            return Result.fail("手机号不合法");
+//        }
         //生成验证码
         String key = RandomUtil.randomString(6);
         //发送验证码
@@ -74,8 +74,7 @@ public class UserController {
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){
-        // TODO 实现登录功能
-        if(loginForm.getPhone() == null||loginForm.getCode() == null||!isPhoneInvalid(loginForm.getPhone())){
+        if(loginForm.getPhone() == null||loginForm.getCode() == null){
             return Result.fail("参数异常");
         }
         //校验验证码
@@ -86,9 +85,9 @@ public class UserController {
             return Result.fail("验证码错误");
         }
         //校验手机号
-        if(!isPhoneInvalid(loginForm.getPhone())){
-            return Result.fail("手机号错误");
-        }
+//        if(!isPhoneInvalid(loginForm.getPhone())){
+//            return Result.fail("手机号错误");
+//        }
         //登陆
         User user=userService.query().eq("phone",loginForm.getPhone()).one();
         if(user==null){

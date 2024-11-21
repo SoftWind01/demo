@@ -74,6 +74,7 @@ public class Blog implements Serializable {
     /**
      * 点赞数量
      */
+    @TableField("liked")
     private Integer liked;
 
     /**

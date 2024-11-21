@@ -64,6 +64,11 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
      */
     @PostConstruct
     private void init() {
+        try {
+            stringRedisTemplate.opsForStream().createGroup("stream.orders","g1");
+        }catch (Exception e){
+            log.error("队列存在");
+        }
         SECKILL_ORDER_EXECUTOR.submit(new voucherOrder());
     }
 
@@ -85,9 +90,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                     Map<Object, Object> entries = mapRecord.getValue();
                     VoucherOrder voucherOrder = BeanUtil.fillBeanWithMap(entries, new VoucherOrder(), true);
                     proxy.createVoucherOrder(voucherOrder);
-                    stringRedisTemplate.opsForStream().acknowledge("s1","g1",mapRecord.getId());
+                    Long ack = stringRedisTemplate.opsForStream().acknowledge("stream.orders", "g1", mapRecord.getId());
+                    log.info("ack确认为：{}",ack);
                 }catch (Exception e){
-                    log.error("处理订单异常",e);
+                    log.error("处理订单异常");
                     handlePandingList();
                 }
 
@@ -110,14 +116,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                     Map<Object, Object> entries = mapRecord.getValue();
                     VoucherOrder voucherOrder = BeanUtil.fillBeanWithMap(entries, new VoucherOrder(), true);
                     proxy.createVoucherOrder(voucherOrder);
-                    stringRedisTemplate.opsForStream().acknowledge("s1","g1",mapRecord.getId());
+                    stringRedisTemplate.opsForStream().acknowledge("stream.orders","g1",mapRecord.getId());
                 }catch (Exception e){
                     try{
                         Thread.sleep(1000);
                     }catch (InterruptedException e1){
                         e1.printStackTrace();
                     }
-                    log.info("处理订单异常",e);
+                    log.info("处理订单异常");
                 }
             }
 

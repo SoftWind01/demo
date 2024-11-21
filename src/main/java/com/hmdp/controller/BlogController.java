@@ -1,6 +1,7 @@
 package com.hmdp.controller;
 
 
+import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
@@ -10,9 +11,12 @@ import com.hmdp.service.IBlogService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -31,6 +35,8 @@ public class BlogController {
     private IBlogService blogService;
     @Resource
     private IUserService userService;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @PostMapping
     public Result saveBlog(@RequestBody Blog blog) {
@@ -45,10 +51,27 @@ public class BlogController {
 
     @PutMapping("/like/{id}")
     public Result likeBlog(@PathVariable("id") Long id) {
-        // 修改点赞数量
-        blogService.update()
-                .setSql("liked = liked + 1").eq("id", id).update();
+        // 修改点赞
+        UserDTO user= UserHolder.getUser();
+        Long userId=user.getId();
+        Boolean isMember = stringRedisTemplate.opsForSet().isMember("isLiked:" + id, userId.toString());
+        if(isMember){
+            blogService.update().setSql("liked=liked-1").eq("id", id).update();
+            stringRedisTemplate.opsForSet().remove("isLiked:" + id, userId.toString());
+            stringRedisTemplate.opsForZSet().remove("isLiked:" + id, userId.toString());
+        }else{
+            blogService.update().setSql("liked=liked+1").eq("id", id).update();
+            long epochSecond = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC);
+            double timeStap=epochSecond*1.0;
+            stringRedisTemplate.opsForZSet().add("likedRankingList:"+id,userId.toString(),timeStap);
+            stringRedisTemplate.opsForSet().add("isLiked:" + id,userId.toString());
+        }
         return Result.ok();
+    }
+
+    @GetMapping("/likes/{id}")
+    public Result likeBlogs(@PathVariable("id") Long id) {
+        return blogService.getLiked(id);
     }
 
     @GetMapping("/of/me")
@@ -77,7 +100,25 @@ public class BlogController {
             User user = userService.getById(userId);
             blog.setName(user.getNickName());
             blog.setIcon(user.getIcon());
+            isLiked(blog);
         });
         return Result.ok(records);
+    }
+
+    @GetMapping("/{id}")
+    public Result queryBlogById(@PathVariable("id") Long id) {
+        Blog blog = blogService.getById(id);
+        isLiked(blog);
+        return Result.ok(blog);
+    }
+
+
+    private void isLiked(Blog blog){
+        UserDTO user= UserHolder.getUser();
+        Long userId=user.getId();
+        Boolean isMember = stringRedisTemplate.opsForSet().isMember("isLiked:" + blog.getId(), userId.toString());
+        if(isMember){
+            blog.setIsLike(true);
+        }
     }
 }
