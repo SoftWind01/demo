@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.ScrollResult;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.User;
@@ -16,6 +17,7 @@ import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -56,5 +58,36 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         List<UserDTO> userDTOS = userList.stream().map(user -> BeanUtil.copyProperties(user, UserDTO.class)).collect(Collectors.toList());
         return Result.ok(userDTOS);
     }
+
+    @Override
+    public Result queryBlogOfFollow(Long max, Integer offset) {
+        Long userId = UserHolder.getUser().getId();
+        Set<ZSetOperations.TypedTuple<String>> set = stringRedisTemplate.opsForZSet().reverseRangeByScoreWithScores("MailBox:" + userId, 0, max, offset, 2);
+        if(set==null||set.size()==0){
+            return  Result.ok();
+        }
+        List<Long> idList=new ArrayList<>(set.size());
+        int os=1;
+        long minTime=0;
+        for(ZSetOperations.TypedTuple<String> tuple:set){
+            long score = tuple.getScore().longValue();
+            if(score==minTime){
+                os++;
+            }else{
+                minTime=score;
+                os=1;
+            }
+            String value = tuple.getValue();
+            idList.add(Long.valueOf(value));
+        }
+        String idStr= StrUtil.join(",",idList);
+        List<Blog> blogList = query().in("id",idList).last("Order By Field(id," + idStr + ")").list();
+        ScrollResult sr=new ScrollResult();
+        sr.setList(blogList);
+        sr.setOffset(os);
+        sr.setMinTime(minTime);
+        return Result.ok(sr);
+    }
+
 
 }

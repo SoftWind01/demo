@@ -6,8 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.service.IBlogService;
+import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
@@ -18,6 +20,7 @@ import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -36,6 +39,8 @@ public class BlogController {
     @Resource
     private IUserService userService;
     @Resource
+    private IFollowService followService;
+    @Resource
     private StringRedisTemplate stringRedisTemplate;
 
     @PostMapping
@@ -45,6 +50,12 @@ public class BlogController {
         blog.setUserId(user.getId());
         // 保存探店博文
         blogService.save(blog);
+        //推送blog给粉丝
+        List<Long> fansIdList = followService.query().select("user_id").eq("follow_user_id", user.getId()).list()
+                .stream().map(Follow::getUserId).collect(Collectors.toList());
+        for(Long fansId : fansIdList){
+            stringRedisTemplate.opsForZSet().add("MailBox:"+fansId,blog.getId().toString(),System.currentTimeMillis());
+        }
         // 返回id
         return Result.ok(blog.getId());
     }
@@ -108,10 +119,30 @@ public class BlogController {
     @GetMapping("/{id}")
     public Result queryBlogById(@PathVariable("id") Long id) {
         Blog blog = blogService.getById(id);
+        if(blog==null){
+            return Result.fail("笔记不存在");
+        }
+        //查询blog是否被点赞
         isLiked(blog);
         return Result.ok(blog);
     }
 
+    @GetMapping("/of/user")
+    public Result queryBlogByUserId(
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam("id") Long id) {
+        // 根据用户查询
+        Page<Blog> page = blogService.query()
+                .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+        // 获取当前页数据
+        List<Blog> records = page.getRecords();
+        return Result.ok(records);
+    }
+
+    @GetMapping("/of/follow")
+    public Result queryBlogOfFollow(@RequestParam("lastId")Long max,@RequestParam(value = "offset",defaultValue = "0")Integer offset){
+        return blogService.queryBlogOfFollow(max,offset);
+    }
 
     private void isLiked(Blog blog){
         UserDTO user= UserHolder.getUser();

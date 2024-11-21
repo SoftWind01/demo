@@ -15,4 +15,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 public interface IBlogService extends IService<Blog> {
 
     Result getLiked(Long id);
+
+    Result queryBlogOfFollow(Long max, Integer offset);
 }
