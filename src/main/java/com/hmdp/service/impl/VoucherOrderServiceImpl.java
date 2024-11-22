@@ -163,7 +163,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     public void createVoucherOrder(VoucherOrder voucherOrder) {
         long userID=voucherOrder.getId();
         long voucherId=voucherOrder.getVoucherId();
-        Integer isBought = this.query().eq("user_id", userID).eq("voucher_id",voucherId).count();
+        Long isBought = this.query().eq("user_id", userID).eq("voucher_id",voucherId).count();
         if(isBought != 0){
             //不允许重复购买
             return ;
