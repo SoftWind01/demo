@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -151,5 +152,13 @@ public class UserController {
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         // 返回
         return Result.ok(userDTO);
+    }
+
+    @PostMapping("/sign")
+    public Result sign(){
+        Long userId = UserHolder.getUser().getId();
+        int dayOfMonth = LocalDateTime.now().getDayOfMonth();
+        stringRedisTemplate.opsForValue().setBit("userSignIn:"+userId,dayOfMonth-1,true);
+        return Result.ok();
     }
 }
